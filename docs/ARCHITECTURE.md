@@ -15,7 +15,7 @@
 
 - **Batch Scheduling:** Enable the content manager to prepare a batch of posts for a full day or week in a single session and assign them to specific time slots in an interactive calendar.
 - **Flexible Multi-Posting via Dynamic Target Cards ("+"):** Publish across 5 target channels (**Discord**, **Telegram**, **X / Twitter**, **FACEIT**, and the **CSCL Website**) with the ability to add multiple target cards via a `"+"` button (for example, targeting multiple Discord channels with distinct text and role pings in a single post) or exclude any platform with one click.
-- **Categorization & Exemplar Knowledge Base:** Organize posts by business categories (`ANNOUNCEMENT`, `STANDINGS`, `FINAL`, `SPONSOR`, `GENERAL`), backfill historical posts from the operator's start date, and reuse top-performing posts (`isExemplar`) as templates and AI few-shot examples.
+- **Categorization & Exemplar Knowledge Base:** Organize posts by business categories (`ANNOUNCEMENT`, `STANDINGS`, `FINAL`, `SPONSOR`, `GENERAL`), backfill historical posts from the fixed archive epoch date (`ARCHIVE_EPOCH_DATE`), and reuse top-performing posts (`isExemplar`) as templates and AI few-shot examples.
 - **Human-Error Prevention:** Automated enforcement of character limits, media file size/format rules, and Markdown rules per target card, paired with an interactive **Live Preview** prior to publishing.
 - **Fault Tolerance & Granular Retry:** External API failure isolation, strict 10-second timeouts, automated retries for transient network errors, stale lock recovery, and one-click retries for failed targets only.
 - **History-Driven AI Assistant (Stage 5):** Automated draft generation from tournament/match bullet points using real category exemplars queried directly from PostgreSQL (**Few-Shot Prompting**), governed by mandatory human review (**Human-in-the-Loop**).
@@ -49,8 +49,8 @@ The UI architecture is divided into dedicated operational screens with zero func
 | **Discord**      | `DISCORD`  | 2000                   | Yes (Discord MD + role pings & timestamps) | 10              | Discord Webhook / Bot REST API (multi-channel) |
 | **Telegram**     | `TELEGRAM` | 4096 (1024 with media) | Yes (MarkdownV2 / HTML)                    | 10 (MediaGroup) | Telegram Bot HTTP API                          |
 | **X (Twitter)**  | `TWITTER`  | 280                    | No (Plain text)                            | 4               | X API v2 (OAuth 2.0, free tier write quota)    |
-| **FACEIT**       | `FACEIT`   | 1000                   | Yes                                        | 1               | FACEIT Organizer / Hub API                     |
-| **CSCL Website** | `SITE`     | 5000                   | Yes (Full MD)                              | 10              | Internal Protected REST / Webhook              |
+| **FACEIT**       | `FACEIT`   | 340 (max 3 lines to prevent "Read more" truncation) | Yes                                        | 1               | FACEIT Organizer / Hub API                     |
+| **CSCL Website** | `SITE`     | 2000                   | Yes (Full MD)                              | 10              | Internal Protected REST / Webhook              |
 
 ---
 
@@ -263,4 +263,26 @@ export interface SocialPlatformAdapter {
 - **Isolated Concurrent Dispatch:** All child `PostTarget` records (`status` equal to `PENDING`) execute concurrently via `Promise.allSettled()`. Transient HTTP errors (`502`, `503`, `429`) trigger up to 3 automatic retries.
 - **Status Aggregation:** The master `Post` status resolves automatically to `PUBLISHED`, `PARTIAL`, or `FAILED`.
 
-### 7.
+### 7.3. Fixed Archive Epoch
+
+- Historical posts and backfills must be based on the fixed archive epoch date (`ARCHIVE_EPOCH_DATE`) rather than the date of data import.
+- `ARCHIVE_EPOCH_DATE` is the UTC baseline for archive and backfill date calculations.
+
+---
+
+## 8. Implementation Tasks
+
+### Task 1.6 (Historical Archive Backfill)
+
+- Backfill historical posts from the fixed archive epoch date (`ARCHIVE_EPOCH_DATE`).
+
+### Task 3.1 (Tabbed Live Preview & Limit Validation)
+
+- Validate 280 chars for X.
+- Validate 340 chars and max 3 lines for the FACEIT Feed (to avoid "Read more" collapsing).
+- Validate 1024 chars with media / 4096 chars text-only for Telegram.
+- Validate 2000 chars for Discord and the CSCL Website.
+
+### Task 5.2 (Multi-Format Editor Generation)
+
+- The AI generator must produce concise overrides for X (up to 280 chars) and the FACEIT Feed (up to 340 chars and max 3 lines).
