@@ -44,3 +44,6 @@ AGENTS.md
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Generated Prisma Client
+/src/generated/prisma

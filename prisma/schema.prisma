@@ -1,0 +1,69 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Platform {
+  DISCORD
+  TELEGRAM
+  TWITTER
+  FACEIT
+  SITE
+}
+
+enum PostCategory {
+  ANNOUNCEMENT
+  STANDINGS
+  CS2_NEWS
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  PARTIAL
+  FAILED
+}
+
+enum TargetStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
+model Post {
+  id        String       @id @default(cuid())
+  title     String?
+  category  PostCategory @default(ANNOUNCEMENT)
+  content   String
+  mediaUrls String[]
+  status    PostStatus   @default(DRAFT)
+
+  targets PostTarget[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PostTarget {
+  id     String @id @default(cuid())
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  platform   Platform
+  status     TargetStatus @default(PENDING)
+  externalId String?
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([postId, platform])
+  @@unique([platform, externalId])
+}
