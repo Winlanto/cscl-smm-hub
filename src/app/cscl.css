@@ -1,0 +1,18 @@
+/* CSCL brand colours. Generated from brand.cscl.gg — do not hand-edit. */
+:root {
+  /* Primary */
+  --cscl-ice-cyan: #00f0ff;
+  --cscl-midnight-navy: #060a10;
+  --cscl-obsidian-slate: #0f1722;
+  --cscl-glacier-stroke: #1f2e42;
+  --cscl-pure-white: #ffffff;
+  --cscl-frost-slate: #8aa2bd;
+
+  /* Secondary — infographics, charts and diagrams */
+  --cscl-aero-blue: #70f7ff;
+  --cscl-pure-emerald: #00e676;
+  --cscl-deep-electric: #2979ff;
+  --cscl-amber-gold: #ffb300;
+  --cscl-neon-rose: #ff1744;
+  --cscl-steel-depth: #3b4d63;
+}
