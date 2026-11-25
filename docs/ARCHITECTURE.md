@@ -63,7 +63,7 @@ Engineered around the **Zero-Bloat Production Stack** principle — enterprise r
 - **Database & ORM:** PostgreSQL 17 + Prisma 7 (`provider = "prisma-client"` with `@prisma/adapter-pg` and `pg`, ACID transactions, composite indexes, and JSONB storage for API payloads and platform metadata).
 - **Object Media Storage:** Cloudflare R2 + `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` (direct client-side Presigned URL uploads without server-side Buffer proxying, providing public HTTPS media URLs across both localhost development and production).
 - **Forms & Validation:** Zod v4 (end-to-end runtime validation) + `react-hook-form` (`useFieldArray`, `useWatch`) + `@hookform/resolvers` for managing dynamic target cards.
-- **Styling & UI:** Tailwind CSS + selective source primitives from `shadcn/ui` (Calendar, Tabs, Dialog, Select, Popover, Badge, Sheet) + `react-markdown`.
+- **Styling & UI:** Tailwind CSS v4 (official CSCL brand tokens from `src/app/cscl.css` mapped to semantic tokens via `@theme inline` in `globals.css`, strict dark-only CSCL ecosystem theme) + `Inter` (Latin & Cyrillic, `tabular-nums` for counters and tables) and `Geist Mono` (IDs, codes, JSONB logs) via `next/font/google` + selective source primitives from `shadcn/ui` (Calendar, Tabs, Dialog, Select, Popover, Badge, Sheet) + `react-markdown`.
 - **Authentication:** Better Auth (Discord OAuth, Steam OpenID, Email + server-side `ALLOWED_USERS_WHITELIST` hook).
 - **Logging:** Custom zero-dependency structured JSON logger (`src/lib/logger.ts`).
 - **Infrastructure:** Docker & Docker Compose + 1-minute system `crontab` trigger (deliberately excluding Redis, BullMQ, and external message brokers).
@@ -89,8 +89,11 @@ cscl-smm-hub/
 └── src/
     ├── proxy.ts                 # Next.js 16 (replaces middleware.ts): fast cookie redirect guard; full session & Whitelist check runs server-side
     ├── app/                     # Next.js 16 App Router
-    │   ├── (auth)/login/        # Private login route
-    │   ├── (dashboard)/         # Protected routes: /, /calendar, /posts, /analytics, /posts/new, /posts/[id], /settings
+    │   ├── cscl.css             # Official CSCL brand palette (brand.cscl.gg, committed untouched)
+    │   ├── globals.css          # Tailwind CSS v4 + semantic brand tokens (@theme inline)
+    │   ├── layout.tsx           # Root Layout: Inter / Geist Mono fonts and dark canvas baseline (min-h-dvh)
+    │   ├── (auth)/login/        # Private login route (without dashboard sidebar)
+    │   ├── (dashboard)/         # Protected Route Group with App Shell (layout.tsx: footerless sidebar + <main> max-w-6xl): /, /calendar, /posts, /analytics, /posts/new, /posts/[id], /settings
     │   └── api/
     │       ├── auth/[...all]/   # Better Auth handler
     │       └── cron/publish/    # Protected 1-minute scheduler endpoint
@@ -112,6 +115,7 @@ cscl-smm-hub/
     │   ├── storage/             # Presigned URL generator for direct client uploads to Cloudflare R2 (S3)
     │   └── ai/                  # Database-driven Few-Shot LLM service (Stage 5)
     ├── components/
+    │   ├── layout/              # App Shell: AppSidebar (desktop sidebar + mobile drawer)
     │   ├── ui/                  # shadcn/ui primitives
     │   ├── calendar/            # Schedule grid and time-slot cards
     │   └── editor/              # Post constructor, dynamic "+" target cards, Live Preview
@@ -266,6 +270,13 @@ export interface SocialPlatformAdapter {
 - **Two-Tier Documentation:** This SRS & SAD specification lives in `docs/ARCHITECTURE.md` for deep technical review by engineering leads, while the root `README.md` serves as a visual product showcase featuring business impact metrics, architecture diagrams, and UI screenshots.
 - **Continuous Deployment via GitHub (GitHub Actions CI/CD):** Once deployed, all future updates are shipped via a standard `git push` to the `main` branch. The `.github/workflows/deploy.yml` pipeline automatically connects to the CSCL server over SSH, pulls the latest commit, runs database migrations (`npx prisma migrate deploy`), and rebuilds/restarts the Docker container with zero downtime or manual intervention.
 
+## 7.5. Non-Functional Requirements (NFR / Quality Attributes) & Server Actions Contract
+
+- **Security:** Strict Server/Client module boundary (never import `db.ts`, `env.ts`, or `r2.ts` in `"use client"` components), server-side Zod v4 input validation and session/`ALLOWED_USERS_WHITELIST` enforcement inside every Server Action, OWASP-compliant media uploads (server-generated `crypto.randomUUID()` + MIME whitelist), and Zero Secrets in Code.
+- **Reliability & Data Integrity:** External API failure isolation (`Promise.allSettled`), strict `AbortSignal.timeout(10000)` timeouts, idempotency (`upsert` / `@@unique`), Stale Lock Recovery, UTC-only database timestamps, and ACID transactions for critical state mutations.
+- **Maintainability & Efficiency (Zero-Bloat):** YAGNI, strict TypeScript (`noUncheckedIndexedAccess`, zero `any` and zero `as unknown as`), Adapter + Registry patterns, deliberate exclusion of unnecessary infrastructure (no Redis/BullMQ/Express), and direct client-side R2 uploads via Presigned URLs.
+- **Observability & Unified Server Actions Contract:** Structured JSON server logging (`src/lib/logger.ts`) and persisted JSONB `apiResponse` logs; all Server Actions must return a standardized discriminated union `{ success: true; data: T } | { success: false; error: string }`, never leaking raw stack traces or internal Prisma errors to the client UI.
+
 ---
 
 # 8. Implementation Roadmap (Walking Skeleton Approach)
@@ -277,7 +288,7 @@ Development progresses in vertical slices — starting with an end-to-end workin
 - **Task 1.1 (Bootstrap & Environment):** Initialize `cscl-smm-hub` (Next.js 16, TypeScript strict), configure `docker-compose.yml` with PostgreSQL 17, and implement incremental Zod v4 environment validation (`src/config/env.ts`).
 - **Task 1.2 (Database Schema & Migration):** Define minimal Stage 1 YAGNI `Post` and `PostTarget` models in `prisma/schema.prisma` (with deterministic categories `ANNOUNCEMENT`, `STANDINGS`, `CS2_NEWS` plus an incremental migration adding the abstract `SPONSOR` category before Task 1.4, and unique constraints `@@unique([postId, platform])`, `@@unique([platform, externalId])`), run the initial migration, and create the `src/lib/db.ts` singleton using `@prisma/adapter-pg`.
 - **Task 1.3 (Cloudflare R2 Media Service):** Implement `src/services/storage/r2.ts` using `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner` to generate Presigned URLs for direct client banner uploads and return public HTTPS URLs.
-- **Task 1.4 (Minimal UI, CRUD & R2 Upload Verification):** Build the navigation shell and foundational `/posts` and `/posts/new` pages, wire form submission via Server Actions to PostgreSQL, and verify direct client-side banner uploads to Cloudflare R2 via Presigned URLs in the browser.
+- **Task 1.4 (CSCL Design System, App Shell, Minimal UI, CRUD & R2 Upload Verification):** Integrate official CSCL brand tokens (`src/app/cscl.css` + `@theme inline` in `globals.css`) and `Inter` / `Geist Mono` fonts (`next/font/google`), build the responsive App Shell inside the `(dashboard)` route group (footerless sidebar matching `ms.cscl.gg` + mobile drawer + `max-w-6xl` container inside `<main>`) along with foundational `/posts` and `/posts/new` pages, wire form submission via Server Actions to PostgreSQL, and verify direct client-side banner uploads to Cloudflare R2 via Presigned URLs in the browser.
 - **Task 1.5a (Adapter Contract, Active Platform Registry & First Adapter — Discord):** Define `SocialPlatformAdapter`, build the active platform registry (`src/config/platforms.ts` + factory `src/services/social/index.ts`), implement the Discord adapter, add a confirmation-guarded "Publish Now" action, and verify the complete end-to-end cycle on a test Discord channel.
 - **Task 1.5b (Incremental Second Adapter — Telegram):** Implement and register the Telegram adapter in the registry, confirm it automatically surfaces in the UI, and verify real text and image publishing to a test Telegram channel.
 
@@ -304,10 +315,4 @@ Development progresses in vertical slices — starting with an end-to-end workin
 ## Stage 5: Database-Driven Few-Shot AI Assistant
 
 - **Task 5.1 (AI Service with DB Exemplar Lookup):** Extend schema with `aiPrompt`, build `src/services/ai/` to query the 3 most recent `isExemplar: true` posts for the selected category (`ANNOUNCEMENT`, `STANDINGS`, `CS2_NEWS`, `SPONSOR`) from PostgreSQL and inject them as few-shot style examples; for `SPONSOR` posts, exemplar lookup additionally filters by `channelKey` so tone and copy from one sponsor do not bleed into another.
-- **Task 5.2 (Multi-Format Editor Generation):** Add the AI prompt modal to `/posts/new` to automatically populate the master Markdown post alongside concise overrides for X (up to 280 chars) and FACEIT Feed (up to 340 chars and max 3 lines).
-
-## Stage 6: Sponsor Analytics & Unified Comment Inbox
-
-- **Task 6.1 (Main CSCL Site Click Tracker Integration):** Extend schema with `metrics`, configure automatic UTM/short-link tagging on `PostTarget` publication and periodic polling of the main CSCL website internal API.
-- **Task 6.2 (Zero-Cost Social Metrics Collector & `/analytics` Page):** Implement automated collection of views and reactions and build the `/analytics` report screen (enabling filtering across all sponsors via `category = SPONSOR` and per individual sponsor via `PostTarget.channelKey` without a separate `Sponsor` table per YAGNI).
-- **Task 6.3 (Dashboard Unified Comment Inbox):** Add `PostComment` model and connect webhooks/polling from Telegram discussion groups, Discord threads, and CSCL website comments with inline reply actions on the `/` dashboard.
+- **Task 5.2 (Multi-Format Editor Generation):** Add the AI prompt modal to `/
